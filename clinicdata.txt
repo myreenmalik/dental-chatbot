@@ -1,0 +1,36 @@
+MPS Dental Clinic - Clinic Information
+
+About:
+MPS Dental Clinic is a full-service dental practice committed to quality care and patient comfort.
+
+Contact:
+- Phone: (555) 123-4567
+- Address: 123 Wellness Avenue, Suite 100, Health City, HC 12345
+- Email: info@mpsdental.com
+
+Hours of Operation:
+- Monday: 8:00 AM – 6:00 PM
+- Tuesday: 8:00 AM – 6:00 PM
+- Wednesday: 8:00 AM – 6:00 PM
+- Thursday: 8:00 AM – 7:00 PM
+- Friday: 8:00 AM – 5:00 PM
+- Saturday: 9:00 AM – 2:00 PM
+- Sunday: Closed
+
+Services Offered:
+- General checkups and cleanings
+- Teeth whitening
+- Fillings and restorations
+- Root canal therapy
+- Extractions
+- Crowns and bridges
+- Dentures and partials
+- Emergency dental care
+- Pediatric dentistry
+- Cosmetic dentistry
+
+Insurance & Payment:
+We accept most major dental insurance plans. Payment plans and financing options are available. Please call for details.
+
+New Patients:
+New patients are welcome. Please arrive 15 minutes early to complete paperwork, or request forms by email.
