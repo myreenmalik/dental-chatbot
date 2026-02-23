@@ -1,117 +1,141 @@
 "use client";
+import { useRef, useState } from "react";
 
-import { useState } from "react";
+type ChatMsg = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+};
 
 export default function Home() {
-  const [localInput, setLocalInput] = useState("");
-  const [messages, setMessages] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // Manual fetch function to bypass the "append is not a function" error
-  const sendMessage = async (content: string) => {
-    if (!content.trim()) return;
-    
-    // 1. Add user message to the UI
-    const userMsg = { id: Date.now().toString(), role: 'user', content };
-    setMessages(prev => [...prev, userMsg]);
-    setIsLoading(true);
-    setLocalInput("");
+  // Keep an always-up-to-date copy of messages to avoid stale state in fetch body
+  const messagesRef = useRef<ChatMsg[]>([]);
+  messagesRef.current = messages;
+
+  async function send(text: string) {
+    if (!text.trim() || loading) return;
+
+    const userMsg: ChatMsg = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: text,
+    };
+
+    // Create an assistant placeholder for streaming
+    const assistantId = crypto.randomUUID();
+    const assistantMsg: ChatMsg = {
+      id: assistantId,
+      role: "assistant",
+      content: "",
+    };
+
+    // Update UI immediately
+    setMessages((prev) => [...prev, userMsg, assistantMsg]);
+    setLoading(true);
+    setInput("");
 
     try {
-      // 2. Direct POST request to your route.ts
-      const response = await fetch('api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [...messages, userMsg] }),
+      const bodyMessages = [...messagesRef.current, userMsg].map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: bodyMessages }),
       });
 
-      if (!response.ok) throw new Error("Failed to connect to API");
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        throw new Error(errText || `Request failed (${res.status})`);
+      }
 
-      // 3. Manual Stream Decoding
-      const reader = response.body?.getReader();
+      if (!res.body) {
+        throw new Error("No response body (stream missing).");
+      }
+
+      const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let assistantContent = "";
 
-      // Add a placeholder for the assistant
-      setMessages(prev => [...prev, { id: 'temp', role: 'assistant', content: "" }]);
+      let content = "";
 
-      while (reader) {
+      while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        
-        assistantContent += decoder.decode(value, { stream: true });
-        
-        // Update the placeholder with real-time text
-        setMessages(prev => {
-          const newMessages = [...prev];
-          newMessages[newMessages.length - 1].content = assistantContent;
-          return newMessages;
-        });
-      }
-    } catch (err) {
-      console.error("Chat error:", err);
-      setMessages(prev => [...prev, { id: 'error', role: 'assistant', content: "Sorry, I'm having trouble connecting right now." }]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  const onFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    sendMessage(localInput);
-  };
+        content += decoder.decode(value, { stream: true });
+
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantId ? { ...m, content } : m))
+        );
+      }
+    } catch (e) {
+      console.error(e);
+      // Show error in the assistant bubble so you see it in the UI
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.role === "assistant" && m.content === ""
+            ? { ...m, content: `Error: ${msg}` }
+            : m
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50 font-sans">
-      <header className="bg-blue-600 p-4 text-white shadow-md">
-        <h1 className="text-xl font-bold flex items-center gap-2">🩺 MPS Dental Assistant</h1>
+    <div className="flex flex-col h-screen bg-slate-50">
+      <header className="bg-blue-600 p-4 text-white font-bold text-xl shadow">
+        🩺 MPS Dental Assistant
       </header>
 
       <main className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 ? (
-          <div className="text-center pt-20">
-            <h2 className="text-slate-600 mb-6 text-lg">How can we help you today?</h2>
-            <button 
-              type="button"
-              onClick={() => sendMessage("What are your hours?")}
-              className="px-8 py-3 border-2 border-blue-600 text-blue-600 rounded-full font-semibold hover:bg-blue-600 hover:text-white transition-all mx-auto"
+        {messages.map((m) => (
+          <div
+            key={m.id}
+            className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+          >
+            <div
+              className={`p-3 rounded-2xl max-w-[80%] ${
+                m.role === "user"
+                  ? "bg-blue-600 text-white"
+                  : "bg-white border shadow-sm text-black"
+              }`}
             >
-              🕒 Check Hours
-            </button>
+              {m.content}
+            </div>
           </div>
-        ) : (
-          <div className="space-y-4 max-w-2xl mx-auto">
-            {messages.map((m) => (
-              <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] p-4 rounded-2xl shadow-sm ${m.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white border text-slate-800'}`}>
-                  {m.content}
-                </div>
-              </div>
-            ))}
-            {isLoading && (
-              <div className="text-xs text-slate-400 animate-pulse italic">Assistant is thinking...</div>
-            )}
-          </div>
-        )}
+        ))}
       </main>
 
-      <footer className="p-4 bg-white border-t">
-        <form onSubmit={onFormSubmit} className="max-w-2xl mx-auto flex gap-2">
-          <input 
-            className="flex-1 border border-slate-200 rounded-xl p-4 outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 text-slate-900"
-            value={localInput}
-            onChange={(e) => setLocalInput(e.target.value)}
-            placeholder="Type your question..."
-          />
-          <button 
-            type="submit" 
-            disabled={isLoading || !localInput.trim()}
-            className="bg-blue-600 text-white px-8 py-2 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
-            Send
-          </button>
-        </form>
-      </footer>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          send(input);
+        }}
+        className="p-4 bg-white border-t flex gap-2"
+      >
+        <input
+          className="flex-1 border p-3 rounded-xl text-black outline-none focus:ring-2 focus:ring-blue-500"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Ask anything..."
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold disabled:opacity-60"
+        >
+          {loading ? "..." : "Send"}
+        </button>
+      </form>
     </div>
   );
 }
